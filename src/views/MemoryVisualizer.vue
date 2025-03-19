@@ -169,6 +169,15 @@ const jvmArgsHelp = [
     }
 ];
 
+// JVM 规范
+const jvmStandard = [
+    {
+        "id": "",
+        "desc": "",
+        "source": ""
+    }
+]
+
 const showArgsHelp = () => {
     showHelpModal.value = true;
 };
