@@ -120,9 +120,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeMount, reactive } from 'vue';
-import { Message, type MessageConfig } from '@arco-design/web-vue';
+import { Message } from '@arco-design/web-vue';
 import MemorySpace from '@/components/jvm-memory-visualizer/MemorySpace.vue';
-import JVM_ARGS from '@/assets/JVM_ARGS.json';
 import type { HeapObject } from '@/types';
 
 onBeforeMount(() => {
@@ -137,7 +136,38 @@ onBeforeMount(() => {
 const isRestarting = ref(false);
 const showHelpModal = ref(false);
 
-const jvmArgsHelp = JVM_ARGS;
+const jvmArgsHelp = [
+    {
+        "name": "-Xms",
+        "desc": "初始堆内存大小",
+        "defaultValue": "100k",
+        "example": "-Xms100k"
+    },
+    {
+        "name": "-Xmx",
+        "desc": "最大堆内存大小",
+        "defaultValue": "100k",
+        "example": "-Xmx100k"
+    },
+    {
+        "name": "-XX:NewRatio",
+        "desc": "新生代与老年代的比例",
+        "defaultValue": "2",
+        "example": "-XX:NewRatio=2"
+    },
+    {
+        "name": "-XX:SurvivorRatio",
+        "desc": "Eden区与Survivor区的比例",
+        "defaultValue": "8",
+        "example": "-XX:SurvivorRatio=8"
+    },
+    {
+        "name": "-XX:MaxTenuringThreshold",
+        "desc": "对象晋升老年代的年龄阈值",
+        "defaultValue": "15",
+        "example": "-XX:MaxTenuringThreshold=15"
+    }
+];
 
 const showArgsHelp = () => {
     showHelpModal.value = true;
@@ -180,7 +210,7 @@ const memoryConfig = ref({
 });
 
 // JVM参数解析函数
-const parseJvmArgs = (args: String) => {
+const parseJvmArgs = (args: string) => {
     const result = {
         initialHeap: 1,
         maxHeap: 1,
@@ -253,9 +283,12 @@ const parseJvmArgs = (args: String) => {
 
         jvmArgs.error = '';
         return result;
-    } catch (error: any) {
-        jvmArgs.error = error.message;
-        return null;
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            jvmArgs.error = error.message;
+        } else {
+            jvmArgs.error = '未知错误';
+        }
     }
 };
 
