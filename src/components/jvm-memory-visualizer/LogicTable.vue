@@ -1,0 +1,77 @@
+<template>
+    <div class="logic-table">
+        <a-table :data="logicList" :pagination="false">
+            <template #columns>
+                <a-table-column title="逻辑名称" data-index="name" :width="200" />
+                <a-table-column title="描述" data-index="desc" />
+                <a-table-column title="状态" :width="100">
+                    <template #cell="{ record }">
+                        <template v-if="record.implemented">
+                            <a-switch v-if="record.configurable" v-model="record.enabled"
+                                @change="handleLogicChange(record)">
+                                <template #checked>已启用</template>
+                                <template #unchecked>已禁用</template>
+                            </a-switch>
+                            <span v-else>{{ record.enabled ? '已启用' : '已禁用' }}</span>
+                        </template>
+                        <template v-else>
+                            <span>未实现</span>
+                        </template>
+                    </template>
+                </a-table-column>
+            </template>
+        </a-table>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+
+interface LogicItem {
+    id: string;
+    name: string;
+    desc: string;
+    enabled: boolean;
+    configurable: boolean;
+    implemented: boolean;
+}
+
+const logicList = ref<LogicItem[]>([
+    {
+        id: 'eden_sweep',
+        name: '优先 Eden 分配',
+        desc: '优先将对象分配到 Eden 区',
+        enabled: true,
+        configurable: false,
+        implemented: true
+    },
+    {
+        id: 'pretenure_size_threshold',
+        name: '大对象直入老年代',
+        desc: '当对象大小超过 Eden 区时，直接在老年代分配（可以通过 -XX:PretenureSizeThreshold 参数配置）',
+        enabled: true,
+        configurable: false,
+        implemented: false
+    },
+    {
+        id: 'dynamic_age_threshold',
+        name: '动态年龄判定',
+        desc: '当 Survivor 区中相同年龄对象大小总和超过 Survivor 区的一半时，年龄大于等于该年龄的对象直接进入老年代',
+        enabled: false,
+        configurable: false,
+        implemented: false
+    }
+]);
+
+const emit = defineEmits(['logicChange']);
+
+const handleLogicChange = (logic: LogicItem) => {
+    emit('logicChange', logic);
+};
+</script>
+
+<style scoped>
+.logic-table {
+    background: white;
+}
+</style>

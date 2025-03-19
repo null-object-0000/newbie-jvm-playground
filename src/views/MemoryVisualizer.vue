@@ -11,6 +11,9 @@
             <a-form-item>
                 <a-button @click="restartJvm" class="restart-button" :loading="isRestarting">重启 JVM</a-button>
             </a-form-item>
+            <a-form-item>
+                <a-button @click="showLogicTable">内存管理逻辑</a-button>
+            </a-form-item>
         </a-form>
 
         <!-- 对象创建表单 -->
@@ -116,12 +119,18 @@
             </template>
         </a-table>
     </a-modal>
+
+    <!-- 内存管理逻辑弹窗 -->
+    <a-modal v-model:visible="showLogicModal" title="内存管理逻辑" :footer="false" width="1000px">
+        <LogicTable @logicChange="handleLogicChange" />
+    </a-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onBeforeMount, reactive } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import MemorySpace from '@/components/jvm-memory-visualizer/MemorySpace.vue';
+import LogicTable from '@/components/jvm-memory-visualizer/LogicTable.vue';
 import type { HeapObject } from '@/types';
 
 onBeforeMount(() => {
@@ -135,6 +144,11 @@ onBeforeMount(() => {
 // 重启状态
 const isRestarting = ref(false);
 const showHelpModal = ref(false);
+const showLogicModal = ref(false);
+
+const showLogicTable = () => {
+    showLogicModal.value = true;
+};
 
 const jvmArgsHelp = [
     {
@@ -654,6 +668,10 @@ const formatBytes = (bytes: number) => {
 const toggleGarbageCollectable = (obj: HeapObject) => {
     obj.isGarbageCollectable = !obj.isGarbageCollectable;
     operationLogs.value.unshift(`切换对象 ${obj.name} 的可回收状态为: ${obj.isGarbageCollectable ? '可回收' : '不可回收'}`);
+};
+
+const handleLogicChange = (logic: { id: string; enabled: boolean }) => {
+    operationLogs.value.unshift(`${logic.enabled ? '启用' : '禁用'}逻辑: ${logic.id}`);
 };
 </script>
 
