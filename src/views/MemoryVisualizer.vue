@@ -180,6 +180,12 @@ const jvmArgsHelp = [
         "desc": "对象晋升老年代的年龄阈值",
         "defaultValue": "15",
         "example": "-XX:MaxTenuringThreshold=15"
+    },
+    {
+        "name": "-XX:TargetSurvivorRatio",
+        "desc": "Survivor区目标使用率",
+        "defaultValue": "50",
+        "example": "-XX:TargetSurvivorRatio=50"
     }
 ];
 
@@ -230,6 +236,7 @@ const memoryConfig = ref({
     newRatio: 2, // 新生代和老年代的比例，默认为2，表示新生代:老年代=1:2
     survivorRatio: 8, // Eden区和Survivor区的比例，默认为8，表示Eden:Survivor=8:1
     maxTenuringThreshold: 15, // 对象晋升年龄阈值，默认为15
+    targetSurvivorRatio: 50, // Survivor区目标使用率，默认为50%
 });
 
 // JVM参数解析函数
@@ -239,7 +246,8 @@ const parseJvmArgs = (args: string) => {
         maxHeap: 1,
         newRatio: 2,
         survivorRatio: 8,
-        maxTenuringThreshold: 15
+        maxTenuringThreshold: 15,
+        targetSurvivorRatio: 50
     };
 
     const xmsMatch = args.match(/-Xms(\d+)([kmg])?/i);
@@ -296,6 +304,15 @@ const parseJvmArgs = (args: string) => {
             result.maxTenuringThreshold = parseInt(maxTenuringThresholdMatch[1]);
             if (result.maxTenuringThreshold < 0 || result.maxTenuringThreshold > 15) {
                 throw new Error('MaxTenuringThreshold必须在0到15之间');
+            }
+        }
+
+        // 解析TargetSurvivorRatio参数
+        const targetSurvivorRatioMatch = args.match(/-XX:TargetSurvivorRatio=(\d+)/i);
+        if (targetSurvivorRatioMatch) {
+            result.targetSurvivorRatio = parseInt(targetSurvivorRatioMatch[1]);
+            if (result.targetSurvivorRatio < 0 || result.targetSurvivorRatio > 100) {
+                throw new Error('TargetSurvivorRatio必须在0到100之间');
             }
         }
 
@@ -438,6 +455,29 @@ class gc {
                 if (obj.age >= MAX_TENURING_THRESHOLD.value) {
                     return put2OldGen(obj)
                 } else {
+                    // 动态年龄判定
+                    const ageMap = new Map<number, number>();
+                    heapObjects.value
+                        .filter(o => o.space === currentFromSpace.value)
+                        .forEach(o => {
+                            ageMap.set(o.age, (ageMap.get(o.age) || 0) + o.size);
+                        });
+
+                    let totalSize = 0;
+                    let targetAge = obj.age;
+                    for (let age = 0; age <= obj.age; age++) {
+                        totalSize += ageMap.get(age) || 0;
+                        if (totalSize > survivorSize.value * memoryConfig.value.targetSurvivorRatio / 100) {
+                            targetAge = age;
+                            break;
+                        }
+                    }
+
+                    if (obj.age >= targetAge) {
+                        operationLogs.value.unshift(`对象 ${obj.name} 因动态年龄判定晋升到老年代`);
+                        return put2OldGen(obj);
+                    }
+
                     // 检查Survivor空间
                     if (getSpaceUsed(SURVIVOR_TO.value) + obj.size <= survivorSize.value) {
                         survivingObjects.push({

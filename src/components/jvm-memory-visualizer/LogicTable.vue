@@ -56,10 +56,10 @@ const logicList = ref<LogicItem[]>([
     {
         id: 'dynamic_age_threshold',
         name: '动态年龄判定',
-        desc: '当 Survivor 区中相同年龄对象大小总和超过 Survivor 区的一半时，年龄大于等于该年龄的对象直接进入老年代',
-        enabled: false,
+        desc: '当 Survivor 区中相同年龄对象大小总和超过 Survivor 区目标使用率时，年龄大于等于该年龄的对象直接进入老年代（可以通过 -XX:TargetSurvivorRatio 参数配置）',
+        enabled: true,
         configurable: false,
-        implemented: false
+        implemented: true
     }
 ]);
 
