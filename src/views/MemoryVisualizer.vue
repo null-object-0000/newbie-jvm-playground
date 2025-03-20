@@ -171,7 +171,7 @@ const jvmArgsHelp = [
     },
     {
         "name": "-XX:SurvivorRatio",
-        "desc": "Eden区与Survivor区的比例",
+        "desc": "Eden 区与 Survivor 区的比例",
         "defaultValue": "8",
         "example": "-XX:SurvivorRatio=8"
     },
@@ -182,8 +182,14 @@ const jvmArgsHelp = [
         "example": "-XX:MaxTenuringThreshold=15"
     },
     {
+        "name": "-XX:PretenureSizeThreshold",
+        "desc": "大对象直接进入老年代的阈值",
+        "defaultValue": "0",
+        "example": "-XX:PretenureSizeThreshold=1048576"
+    },
+    {
         "name": "-XX:TargetSurvivorRatio",
-        "desc": "Survivor区目标使用率",
+        "desc": "Survivor 区目标使用率",
         "defaultValue": "50",
         "example": "-XX:TargetSurvivorRatio=50"
     }
@@ -237,7 +243,9 @@ const memoryConfig = ref({
     survivorRatio: 8, // Eden区和Survivor区的比例，默认为8，表示Eden:Survivor=8:1
     maxTenuringThreshold: 15, // 对象晋升年龄阈值，默认为15
     targetSurvivorRatio: 50, // Survivor区目标使用率，默认为50%
+    pretenureSizeThreshold: 0, // 大对象直接进入老年代的阈值，默认为0，表示不启用
 });
+
 
 // JVM参数解析函数
 const parseJvmArgs = (args: string) => {
@@ -247,7 +255,8 @@ const parseJvmArgs = (args: string) => {
         newRatio: 2,
         survivorRatio: 8,
         maxTenuringThreshold: 15,
-        targetSurvivorRatio: 50
+        targetSurvivorRatio: 50,
+        pretenureSizeThreshold: 0
     };
 
     const xmsMatch = args.match(/-Xms(\d+)([kmg])?/i);
@@ -313,6 +322,15 @@ const parseJvmArgs = (args: string) => {
             result.targetSurvivorRatio = parseInt(targetSurvivorRatioMatch[1]);
             if (result.targetSurvivorRatio < 0 || result.targetSurvivorRatio > 100) {
                 throw new Error('TargetSurvivorRatio必须在0到100之间');
+            }
+        }
+
+        // 解析PretenureSizeThreshold参数
+        const pretenureSizeThresholdMatch = args.match(/-XX:PretenureSizeThreshold=(\d+)/i);
+        if (pretenureSizeThresholdMatch) {
+            result.pretenureSizeThreshold = parseInt(pretenureSizeThresholdMatch[1]);
+            if (result.pretenureSizeThreshold < 0) {
+                throw new Error('PretenureSizeThreshold必须大于等于0');
             }
         }
 
@@ -585,7 +603,17 @@ const createObject = () => {
         isGarbageCollectable: newObject.value.isGarbageCollectable
     } as HeapObject;
 
-    if (sizeInBytes > edenSize.value) {
+    if (sizeInBytes >= memoryConfig.value.pretenureSizeThreshold && memoryConfig.value.pretenureSizeThreshold > 0) {
+        // 对象大小超过阈值，直接进入Old Gen区
+        if (getSpaceUsed(MEMORY_SPACE.OLD_GEN) + newObj.size > oldGenSize.value) {
+            throw applicationError('java.lang.OutOfMemoryError: Java heap space');
+        }
+
+        newObj.space = MEMORY_SPACE.OLD_GEN;
+        newObj.position = getNextPosition(MEMORY_SPACE.OLD_GEN);
+        heapObjects.value.push(newObj);
+        operationLogs.value.unshift(`对象大小(${formatBytes(sizeInBytes)})超过阈值(${formatBytes(memoryConfig.value.pretenureSizeThreshold)})，直接进入老年代`);
+    } else if (sizeInBytes > edenSize.value) {
         // 对象大小超过Eden区大小，尝试直接进入Old Gen区
         if (getSpaceUsed(MEMORY_SPACE.OLD_GEN) + newObj.size > oldGenSize.value) {
             throw applicationError('java.lang.OutOfMemoryError: Java heap space');

@@ -48,10 +48,26 @@ const logicList = ref<LogicItem[]>([
     {
         id: 'pretenure_size_threshold',
         name: '大对象直入老年代',
-        desc: '当对象大小超过 Eden 区时，直接在老年代分配（可以通过 -XX:PretenureSizeThreshold 参数配置）',
+        desc: '当对象大小超过 Eden 区时，直接在老年代分配（可以通过 -XX:PretenureSizeThreshold 参数配置，超过此值的对象直接在老年代分配）',
         enabled: true,
         configurable: false,
-        implemented: false
+        implemented: true
+    },
+    {
+        id: 'space_guarantee',
+        name: '空间分配担保',
+        desc: '当 Survivor 区空间不足时，会将对象直接分配到老年代',
+        enabled: true,
+        configurable: false,
+        implemented: true
+    },
+    {
+        id: 'max_tenuring_threshold',
+        name: '对象年龄阈值',
+        desc: '对象在 Survivor 区中每经过一次 Minor GC 年龄增加 1，当年龄超过阈值时进入老年代（可以通过 -XX:MaxTenuringThreshold 参数配置）',
+        enabled: true,
+        configurable: false,
+        implemented: true
     },
     {
         id: 'dynamic_age_threshold',
