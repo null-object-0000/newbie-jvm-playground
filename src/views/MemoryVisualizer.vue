@@ -1,110 +1,136 @@
 <template>
     <div class="jvm-memory-visualizer">
-        <!-- 内存配置区域 -->
-        <a-form :model="jvmArgs" layout="inline" class="memory-config-panel">
-            <a-form-item field="value" label="JVM 参数：" style="flex: 1;" :help="jvmArgs.error">
-                <a-input v-model="jvmArgs.value" placeholder="例如: -Xms512m -Xmx1024m" />
-            </a-form-item>
-            <a-form-item>
-                <a-button @click="showArgsHelp" style="margin: 0 10px">参数说明</a-button>
-            </a-form-item>
-            <a-form-item>
-                <a-button @click="restartJvm" class="restart-button" :loading="isRestarting">重启 JVM</a-button>
-            </a-form-item>
-            <a-form-item>
-                <a-button @click="showLogicTable">内存管理逻辑</a-button>
-            </a-form-item>
-        </a-form>
+        <a-space direction="vertical" :size="16" style="display: block;">
+            <a-row class="form-row">
+                <a-col :span="24">
+                    <!-- 内存配置区域 -->
+                    <a-form :model="jvmArgs" layout="inline" class="memory-config-panel">
+                        <a-form-item field="value" label="JVM 参数：" style="flex: 1;" :help="jvmArgs.error">
+                            <a-input v-model="jvmArgs.value" placeholder="例如: -Xms512m -Xmx1024m" />
+                        </a-form-item>
+                        <a-form-item>
+                            <a-button @click="showArgsHelp" style="margin: 0 10px">参数说明</a-button>
+                        </a-form-item>
+                        <a-form-item>
+                            <a-button @click="restartJvm" class="restart-button" :loading="isRestarting">重启
+                                JVM</a-button>
+                        </a-form-item>
+                        <a-form-item>
+                            <a-button @click="showLogicTable">内存管理逻辑</a-button>
+                        </a-form-item>
+                    </a-form>
+                </a-col>
+            </a-row>
+            <a-row class="form-row">
+                <a-col :span="24">
+                    <!-- 对象创建表单 -->
+                    <a-form ref="newObjectFormRef" layout="inline" :model="newObject" class="control-panel">
+                        <a-form-item field="name" label="对象名称：" style="flex: 1;">
+                            <a-input v-model="newObject.name" placeholder="输入对象名称" />
+                        </a-form-item>
+                        <a-form-item field="size" label="对象大小：" style="flex: 1;">
+                            <a-input-number v-model="newObject.size" :min="1" placeholder="输入对象大小" />
+                            <a-select v-model="newObject.unit" style="margin-left: 10px; width: 100px;">
+                                <a-option value="B">B</a-option>
+                                <a-option value="KB">KB</a-option>
+                                <a-option value="MB">MB</a-option>
+                            </a-select>
+                        </a-form-item>
+                        <a-form-item field="isGarbageCollectable">
+                            <a-switch v-model="newObject.isGarbageCollectable">
+                                <template #checked>可回收</template>
+                                <template #unchecked>不可回收</template>
+                            </a-switch>
+                        </a-form-item>
+                        <a-form-item>
+                            <a-dropdown trigger="hover" @click="createObject"
+                                :disabled="!isValidObject || isRestarting">
+                                <a-button>创建对象</a-button>
+                                <template #content>
+                                    <a-doption @click="createObjects(5)">5 个对象</a-doption>
+                                    <a-doption @click="createObjects(10)">10 个对象</a-doption>
+                                </template>
+                            </a-dropdown>
+                        </a-form-item>
+                    </a-form>
+                </a-col>
+            </a-row>
+            <a-row class="memory-container">
+                <!-- 内存区域可视化 -->
+                <a-col :span="16">
+                    <div class="memory-visualization">
+                        <h2>堆内存</h2>
+                        <div class="memory-regions">
+                            <!-- 新生代 -->
+                            <div class="young-gen">
+                                <h3>新生代 ({{ formatBytes(youngGenSize) }})</h3>
 
-        <!-- 对象创建表单 -->
-        <a-form ref="newObjectFormRef" layout="inline" :model="newObject" class="control-panel">
-            <a-form-item field="name" label="对象名称：" style="flex: 1;">
-                <a-input v-model="newObject.name" placeholder="输入对象名称" />
-            </a-form-item>
-            <a-form-item field="size" label="对象大小：" style="flex: 1;">
-                <a-input-number v-model="newObject.size" :min="1" placeholder="输入对象大小" />
-                <a-select v-model="newObject.unit" style="margin-left: 10px; width: 100px;">
-                    <a-option value="B">B</a-option>
-                    <a-option value="KB">KB</a-option>
-                    <a-option value="MB">MB</a-option>
-                </a-select>
-            </a-form-item>
-            <a-form-item field="isGarbageCollectable">
-                <a-switch v-model="newObject.isGarbageCollectable">
-                    <template #checked>可回收</template>
-                    <template #unchecked>不可回收</template>
-                </a-switch>
-            </a-form-item>
-            <a-form-item>
-                <a-dropdown trigger="hover" @click="createObject" :disabled="!isValidObject || isRestarting">
-                    <a-button>创建对象</a-button>
-                    <template #content>
-                        <a-doption @click="createObjects(5)">5 个对象</a-doption>
-                        <a-doption @click="createObjects(10)">10 个对象</a-doption>
-                    </template>
-                </a-dropdown>
-            </a-form-item>
-        </a-form>
+                                <!-- Eden区 -->
+                                <MemorySpace class="eden-space" space-name="Eden Space" :total-size="edenSize"
+                                    :used-size="getSpaceUsed(MEMORY_SPACE.EDEN)"
+                                    :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.EDEN)"
+                                    :getObjectStyle="getObjectStyle"
+                                    @toggleGarbageCollectable="toggleGarbageCollectable">
+                                </MemorySpace>
 
-        <!-- 内存区域可视化 -->
-        <div class="memory-container">
-            <div class="memory-visualization">
-                <h2>堆内存</h2>
-                <div class="memory-regions">
-                    <!-- 新生代 -->
-                    <div class="young-gen">
-                        <h3>新生代 ({{ formatBytes(youngGenSize) }})</h3>
+                                <!-- Survivor区 -->
+                                <div class="survivor-spaces">
+                                    <MemorySpace class="survivor-space" space-name="Survivor 0"
+                                        :space-desc="currentFromSpace === MEMORY_SPACE.SURVIVOR_0 ? 'From区' : 'To区'"
+                                        :total-size="survivorSize" :used-size="getSpaceUsed(MEMORY_SPACE.SURVIVOR_0)"
+                                        :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.SURVIVOR_0)"
+                                        :getObjectStyle="getObjectStyle"
+                                        @toggleGarbageCollectable="toggleGarbageCollectable">
+                                    </MemorySpace>
 
-                        <!-- Eden区 -->
-                        <MemorySpace class="eden-space" space-name="Eden Space" :total-size="edenSize"
-                            :used-size="getSpaceUsed(MEMORY_SPACE.EDEN)"
-                            :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.EDEN)"
-                            :getObjectStyle="getObjectStyle" @toggleGarbageCollectable="toggleGarbageCollectable">
-                        </MemorySpace>
-
-                        <!-- Survivor区 -->
-                        <div class="survivor-spaces">
-                            <MemorySpace class="survivor-space" space-name="Survivor 0"
-                                :space-desc="currentFromSpace === MEMORY_SPACE.SURVIVOR_0 ? 'From区' : 'To区'"
-                                :total-size="survivorSize" :used-size="getSpaceUsed(MEMORY_SPACE.SURVIVOR_0)"
-                                :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.SURVIVOR_0)"
-                                :getObjectStyle="getObjectStyle" @toggleGarbageCollectable="toggleGarbageCollectable">
-                            </MemorySpace>
-
-                            <MemorySpace class="survivor-space" space-name="Survivor 1"
-                                :space-desc="currentFromSpace === MEMORY_SPACE.SURVIVOR_1 ? 'From区' : 'To区'"
-                                :total-size="survivorSize" :used-size="getSpaceUsed(MEMORY_SPACE.SURVIVOR_1)"
-                                :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.SURVIVOR_1)"
-                                :getObjectStyle="getObjectStyle" @toggleGarbageCollectable="toggleGarbageCollectable">
-                            </MemorySpace>
+                                    <MemorySpace class="survivor-space" space-name="Survivor 1"
+                                        :space-desc="currentFromSpace === MEMORY_SPACE.SURVIVOR_1 ? 'From区' : 'To区'"
+                                        :total-size="survivorSize" :used-size="getSpaceUsed(MEMORY_SPACE.SURVIVOR_1)"
+                                        :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.SURVIVOR_1)"
+                                        :getObjectStyle="getObjectStyle"
+                                        @toggleGarbageCollectable="toggleGarbageCollectable">
+                                    </MemorySpace>
+                                </div>
+                            </div>
+                            <!-- 老年代 -->
+                            <div class="old-gen">
+                                <h3>老年代 ({{ formatBytes(oldGenSize) }})</h3>
+                                <MemorySpace class="old-gen" space-name="Old Gen" :total-size="oldGenSize"
+                                    :used-size="getSpaceUsed(MEMORY_SPACE.OLD_GEN)"
+                                    :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.OLD_GEN)"
+                                    :getObjectStyle="getObjectStyle"
+                                    @toggleGarbageCollectable="toggleGarbageCollectable">
+                                </MemorySpace>
+                            </div>
+                        </div>
+                        <div class="memory-info">
+                            <p>总容量: {{ formatBytes(heapSize) }}</p>
+                            <p>已使用: {{ formatBytes(usedHeapSize) }}</p>
+                            <p>剩余空间: {{ formatBytes(heapSize - usedHeapSize) }}</p>
                         </div>
                     </div>
-                    <!-- 老年代 -->
-                    <div class="old-gen">
-                        <h3>老年代 ({{ formatBytes(oldGenSize) }})</h3>
-                        <MemorySpace class="old-gen" space-name="Old Gen" :total-size="oldGenSize"
-                            :used-size="getSpaceUsed(MEMORY_SPACE.OLD_GEN)"
-                            :heapObjects="heapObjects.filter(o => o.space === MEMORY_SPACE.OLD_GEN)"
-                            :getObjectStyle="getObjectStyle" @toggleGarbageCollectable="toggleGarbageCollectable">
-                        </MemorySpace>
+                </a-col>
+                <!-- 运行日志 -->
+                <a-col :span="8">
+                    <div class="operation-history">
+                        <h2>运行日志</h2>
+                        <ul>
+                            <li v-for="(log, index) in operationLogs" :key="index">
+                                {{ log }}
+                            </li>
+                        </ul>
                     </div>
-                </div>
-                <div class="memory-info">
-                    <p>总容量: {{ formatBytes(heapSize) }}</p>
-                    <p>已使用: {{ formatBytes(usedHeapSize) }}</p>
-                    <p>剩余空间: {{ formatBytes(heapSize - usedHeapSize) }}</p>
-                </div>
-            </div>
+                </a-col>
+            </a-row>
+        </a-space>
+    </div>
 
-            <!-- 运行日志 -->
-            <div class="operation-history">
-                <h2>运行日志</h2>
-                <ul>
-                    <li v-for="(log, index) in operationLogs" :key="index">
-                        {{ log }}
-                    </li>
-                </ul>
-            </div>
+    <div class="jvm-memory-visualizer">
+
+        <div class="memory-container">
+
+
+
         </div>
     </div>
 
@@ -748,131 +774,19 @@ const handleLogicChange = (logic: { id: string; enabled: boolean }) => {
     padding: 20px;
 }
 
-.memory-config-panel {
+.jvm-memory-visualizer .form-row {
     background: white;
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     margin-bottom: 20px;
-}
-
-.config-group {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-.config-item {
-    flex: 1;
-    min-width: 200px;
-}
-
-.config-item label {
-    display: block;
-    margin-bottom: 5px;
-}
-
-.config-item .size-input-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.config-item input {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-.config-item .unit {
-    width: 30px;
-    color: #666;
-}
-
-.control-panel {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-}
-
-.memory-container {
-    display: flex;
-    gap: 20px;
-    width: 100%;
-}
-
-.form-group {
-    flex: 1;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 8px;
-    padding-right: 0px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-.error-message {
-    color: #dc3545;
-    font-size: 0.875em;
-    margin-top: 5px;
-}
-
-.size-input-group {
-    display: flex;
-    gap: 10px;
-}
-
-.size-input-group input {
-    flex: 1;
-}
-
-.size-input-group select {
-    width: 80px;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: white;
 }
 
 .memory-visualization {
-    width: 70%;
-    margin: 0;
     padding: 20px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.memory-regions {
-    margin: 20px 0;
-    width: 100%;
-}
-
-.young-gen,
-.old-gen {
-    background: #fff;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    width: 100%;
-}
-
-.eden-space,
-.survivor-space {
-    margin: 10px 0;
 }
 
 .survivor-spaces {
@@ -893,8 +807,7 @@ const handleLogicChange = (logic: { id: string; enabled: boolean }) => {
 }
 
 .operation-history {
-    width: 30%;
-    margin: 0;
+    margin-left: 20px;
     background: white;
     padding: 20px;
     border-radius: 8px;
@@ -906,7 +819,7 @@ const handleLogicChange = (logic: { id: string; enabled: boolean }) => {
     list-style: none;
     padding: 0;
     margin: 0;
-    height: 500px;
+    height: 535px;
     overflow-y: auto;
     font-size: 13px;
 }
