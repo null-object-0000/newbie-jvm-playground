@@ -12,8 +12,9 @@
                             <a-button @click="showArgsHelp" style="margin: 0 10px">参数说明</a-button>
                         </a-form-item>
                         <a-form-item>
-                            <a-button @click="restartJvm" class="restart-button" :loading="isRestarting">重启
-                                JVM</a-button>
+                            <a-button @click="restartJvm" class="restart-button" :loading="isRestarting">
+                                重启 JVM
+                            </a-button>
                         </a-form-item>
                         <a-form-item>
                             <a-button @click="showLogicTable">内存管理逻辑</a-button>
@@ -123,15 +124,6 @@
                 </a-col>
             </a-row>
         </a-space>
-    </div>
-
-    <div class="jvm-memory-visualizer">
-
-        <div class="memory-container">
-
-
-
-        </div>
     </div>
 
     <!-- https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html -->
@@ -486,6 +478,15 @@ class gc {
             }
         }
 
+        const ageMap = new Map<number, number>();
+        heapObjects.value
+            .filter(o => o.space === currentFromSpace.value)
+            .forEach(o => {
+                ageMap.set(o.age, (ageMap.get(o.age) || 0) + o.size);
+            });
+
+        console.log(ageMap)
+
         heapObjects.value
             .filter(obj => obj.space === currentFromSpace.value)
             .forEach(obj => {
@@ -500,22 +501,18 @@ class gc {
                     return put2OldGen(obj)
                 } else {
                     // 动态年龄判定
-                    const ageMap = new Map<number, number>();
-                    heapObjects.value
-                        .filter(o => o.space === currentFromSpace.value)
-                        .forEach(o => {
-                            ageMap.set(o.age, (ageMap.get(o.age) || 0) + o.size);
-                        });
-
                     let totalSize = 0;
-                    let targetAge = obj.age;
+                    let targetAge = MAX_TENURING_THRESHOLD.value + 1;
                     for (let age = 0; age <= obj.age; age++) {
                         totalSize += ageMap.get(age) || 0;
+                        console.log('age:', age, 'totalSize:', totalSize, 'ration:', survivorSize.value * memoryConfig.value.targetSurvivorRatio / 100)
                         if (totalSize > survivorSize.value * memoryConfig.value.targetSurvivorRatio / 100) {
                             targetAge = age;
                             break;
                         }
                     }
+
+                    console.log(obj.age, 'targetAge:', targetAge)
 
                     if (obj.age >= targetAge) {
                         operationLogs.value.unshift(`对象 ${obj.name} 因动态年龄判定晋升到老年代`);
