@@ -434,10 +434,8 @@ const convertToBytes = (size: number, unit: string) => {
 const hasApplicationError = ref(false);
 
 const isValidObject = computed(() => {
-    const sizeInBytes = convertToBytes(newObject.value.size, newObject.value.unit);
     return newObject.value.name &&
         newObject.value.size > 0 &&
-        sizeInBytes <= (heapSize.value - usedHeapSize.value) &&
         !hasApplicationError.value;
 });
 
@@ -625,6 +623,11 @@ const createObject = () => {
         position: 0,
         isGarbageCollectable: newObject.value.isGarbageCollectable
     } as HeapObject;
+
+    // 对象大小超过堆空间大小，直接抛出异常
+    if (sizeInBytes > heapSize.value) {
+        throw applicationError('java.lang.OutOfMemoryError: Java heap space');
+    }
 
     if (sizeInBytes >= memoryConfig.value.pretenureSizeThreshold && memoryConfig.value.pretenureSizeThreshold > 0) {
         // 对象大小超过阈值，直接进入Old Gen区
